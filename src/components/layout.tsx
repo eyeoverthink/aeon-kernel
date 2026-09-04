@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { Link, useLocation } from 'wouter';
-import { ShieldAlert, Zap, BookOpen, Clock, Activity, Code2, Play } from 'lucide-react';
+import { ShieldAlert, Zap, BookOpen, Clock, Activity, Code2, Play, Microscope } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useKernelStore } from '@/hooks/use-kernel';
 
@@ -10,6 +10,7 @@ export function Layout({ children }: { children: ReactNode }) {
 
   const navItems = [
     { href: '/', label: 'Workbench', icon: Zap },
+    { href: '/matter-lab', label: 'Matter Lab', icon: Microscope },
     { href: '/transmuter', label: 'Transmuter', icon: Code2 },
     { href: '/receipts', label: 'Ledger', icon: Clock },
     { href: '/about', label: 'Boundaries', icon: ShieldAlert },
