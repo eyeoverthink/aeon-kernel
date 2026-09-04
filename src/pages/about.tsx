@@ -20,10 +20,10 @@ export default function About() {
             <div className="space-y-3 text-sm text-foreground/80 leading-relaxed">
               <p>
                 The Aeon Kernel operates on an absolute <strong>L0 Safety Boundary</strong>. 
-                Any payload exhibiting abstract malicious signatures—JNDI injections, credential scrapers, or anomalous entropy—is immediately blocked at the ingestion layer.
+                Inputs matching JNDI lookup signatures, credential-shaped assignments, or dynamic execution calls are stopped before parsing.
               </p>
               <p>
-                The <strong>Copy-Try Filter</strong> sandboxes evaluation in memory, comparing execution results against verified deterministic outcomes before any transmutation reaches the bytecode layer.
+                Execution occurs entirely within a <strong>lexer-parser-bytecode-bounded-VM pipeline</strong>. The source is tokenized and compiled to a specialized instruction set, ensuring no native evaluation can occur.
               </p>
               <div className="bg-black border border-destructive/20 p-3 mt-4 text-xs font-mono text-destructive/80">
                 [BLOCKED] ${`{jndi:ldap://attacker}`}
@@ -40,10 +40,10 @@ export default function About() {
             <div className="space-y-3 text-sm text-foreground/80 leading-relaxed">
               <p>
                 No native `eval()`, `Function`, WebAssembly, or active network calls are executed by this interface. 
-                The simulation of execution is fully deterministic, mapping recognized signatures to their exact register states and instruction opcodes.
+                Valid Aeon source is tokenized, parsed into an AST, compiled to stack bytecode, decoded, and interpreted with bounded steps and stack depth. The displayed VM state is derived from that run.
               </p>
               <p>
-                Inputs outside the constrained set of recognized alchemical/mathematical operations are marked <strong>UNSUPPORTED</strong> to prevent non-deterministic behavioral drift.
+                Syntax outside the constrained numeric grammar is rejected. Dynamic or process-execution requests are marked <strong>UNSUPPORTED</strong>; malformed Aeon programs are <strong>BLOCKED</strong>.
               </p>
             </div>
           </section>
@@ -59,29 +59,36 @@ export default function About() {
               <li className="flex gap-3">
                 <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
                 <div>
-                  <strong className="block text-foreground mb-1 uppercase tracking-wider text-xs">FOR_LOOP / Scan</strong>
-                  <span className="text-muted-foreground">Iterates over structures verifying bounds and catching complex/NaN domains early.</span>
+                  <strong className="block text-foreground mb-1 uppercase tracking-wider text-xs">THREAT_GATE</strong>
+                  <span className="text-muted-foreground">Validates raw signatures against known exploits before execution reaches downstream agents. Blocks credential exposure.</span>
                 </div>
               </li>
               <li className="flex gap-3">
                 <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
                 <div>
-                  <strong className="block text-foreground mb-1 uppercase tracking-wider text-xs">COPY_TRY / Sandbox</strong>
-                  <span className="text-muted-foreground">Constructs isolated runs. Identifies mathematical inconsistencies like `pow(-2, 0.5)` resulting in NaN.</span>
+                  <strong className="block text-foreground mb-1 uppercase tracking-wider text-xs">LOOP_SCAN</strong>
+                  <span className="text-muted-foreground">Inspects syntax boundaries. Catches unsupported loops and dynamic control flow before parsing.</span>
                 </div>
               </li>
               <li className="flex gap-3">
                 <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
                 <div>
-                  <strong className="block text-foreground mb-1 uppercase tracking-wider text-xs">MALICIOUS_SCAN</strong>
-                  <span className="text-muted-foreground">Validates raw signatures against known exploits before execution reaches downstream agents.</span>
+                  <strong className="block text-foreground mb-1 uppercase tracking-wider text-xs">COMPILER</strong>
+                  <span className="text-muted-foreground">The Aeon lexer, parser, and bytecode compiler. Emits bounded instruction sets for the VM.</span>
                 </div>
               </li>
               <li className="flex gap-3">
                 <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
                 <div>
-                  <strong className="block text-foreground mb-1 uppercase tracking-wider text-xs">EVOLVE_ADAPT</strong>
-                  <span className="text-muted-foreground">Writes successful and blocked states into immutable ledger, managing version progression.</span>
+                  <strong className="block text-foreground mb-1 uppercase tracking-wider text-xs">AEON_VM</strong>
+                  <span className="text-muted-foreground">Executes bounded stack bytecode, halting deterministically on limits to prevent runaway resource usage.</span>
+                </div>
+              </li>
+              <li className="flex gap-3">
+                <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
+                <div>
+                  <strong className="block text-foreground mb-1 uppercase tracking-wider text-xs">MUTATION</strong>
+                  <span className="text-muted-foreground">Writes successful and blocked receipts to a local persisted ledger and promotes only bounded VM runs that reach HALT.</span>
                 </div>
               </li>
             </ul>
