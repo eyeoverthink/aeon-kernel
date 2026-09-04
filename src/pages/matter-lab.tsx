@@ -18,6 +18,9 @@ import {
   DEFAULT_LATTICE_GATE_THRESHOLD,
   type LatticeGateResult
 } from '@/lib/lattice-gate';
+import { buildCheckpointDemo } from '@/lib/checkpoint-ledger';
+import { inspectWasmBinary, WasmInspectorError, WASM_INSPECTOR_MAX_BYTES, type WasmInspection } from '@/lib/wasm-inspector';
+import { compareVectorLayouts, hammingDistance, runDefaultVectorTrial, seededVector, similarity, type VectorLabTrial } from '@/lib/vector-lab';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -613,6 +616,59 @@ function L0SafetySection() {
   return <div className="border border-border bg-card flex flex-col" data-testid="l0-safety"><div className="bg-muted px-3 py-2 border-b border-border text-xs font-bold uppercase tracking-wider">L0 Arithmetic and Bitwise Safety</div><div className="p-4 flex flex-col gap-4"><div className="text-xs text-muted-foreground">Evaluates explicit numeric operands only; it does not parse or execute source text.</div><Button type="button" data-testid="l0-run" onClick={() => setSuite(runL0TrialSuite(DEFAULT_L0_TRIAL_CASES))} className="w-fit rounded-none tracking-widest font-bold"><Play className="w-4 h-4 mr-2" />RUN DEFAULT SUITE</Button>{suite && <><div className="text-xs">Suite receipt {suite.receiptHash} · accepted: {String(suite.accepted)}</div><div className="grid grid-cols-1 lg:grid-cols-2 gap-3">{suite.cases.map(item => <div key={item.id} className="border border-border/50 p-3 text-xs flex flex-col gap-1"><strong>{item.id}: {item.operation}({item.evidence.left}, {item.evidence.right}) = {item.result}</strong><div>Classification: {item.classification} · receipt {item.receiptHash} · accepted {String(item.accepted)}</div><div>Policy: {item.policy.evaluationRule}</div>{item.evidence.signed64Result && <div>Signed-64 evidence: left {item.evidence.signed64Left}, right {item.evidence.signed64Right}, result {item.evidence.signed64Result}</div>}<div>Contradictions: {item.contradictions.map(c => `${c.code}: ${c.detected ? 'detected' : 'clear'}`).join(' · ')}</div></div>)}</div></>}</div></div>;
 }
 
+function CheckpointLedgerSection() {
+  const [demo, setDemo] = useState<ReturnType<typeof buildCheckpointDemo> | null>(null);
+  const contradictions = demo ? [...demo.events.flatMap(event => event.contradictions), ...demo.aggregate.contradictions, ...demo.boundary.contradictions] : [];
+  return <div className="border border-border bg-card flex flex-col" data-testid="checkpoint-ledger">
+    <div className="bg-muted px-3 py-2 border-b border-border text-xs font-bold uppercase tracking-wider">Hierarchical Semantic Checkpoints</div>
+    <div className="p-4 flex flex-col gap-4">
+      <div className="border border-amber-400/30 bg-amber-400/5 p-3 text-xs text-amber-300">Every hash shown here is an FNV-1a non-cryptographic semantic checksum — not a signature, authentication, or cryptographic proof. L0 events are ephemeral.</div>
+      <Button type="button" data-testid="checkpoint-run" onClick={() => setDemo(buildCheckpointDemo())} className="w-fit rounded-none tracking-widest font-bold"><Play className="w-4 h-4 mr-2" />BUILD CHECKPOINT DEMO</Button>
+      {demo && <div className="flex flex-col gap-4" data-testid="checkpoint-result">
+        <div><div className="text-xs text-muted-foreground uppercase tracking-widest border-b border-border/50 pb-1 mb-2">L0 ephemeral events</div><div className="grid grid-cols-1 lg:grid-cols-3 gap-3">{demo.events.map(event => <div key={event.id} className="border border-border/50 bg-black/30 p-3 text-xs flex flex-col gap-1"><strong>{event.id}</strong><div>Operation: {event.operation} · result: {event.result}</div><div>Classification: {event.classification} · accepted: {String(event.accepted)}</div><div className="break-all">L0 receipt checksum (FNV-1a non-cryptographic semantic checksum): {event.l0ReceiptChecksum}</div><div className="break-all">Event hash (FNV-1a non-cryptographic semantic checksum): {event.checksum}</div><div>Contradictions: {event.contradictions.map(item => `${item.code}: ${item.detected ? 'detected' : 'clear'}`).join(' · ')}</div></div>)}</div></div>
+        <div className="border border-border/50 p-3 text-xs flex flex-col gap-2"><strong>L1 aggregate: {demo.aggregate.id}</strong><div className="grid grid-cols-2 md:grid-cols-4 gap-3"><Metric label="Operations" value={demo.aggregate.counts.operations} /><Metric label="Accepted / rejected" value={`${demo.aggregate.counts.accepted} / ${demo.aggregate.counts.rejected}`} /><Metric label="Finite min / max" value={`${demo.aggregate.finiteResultRange.min ?? 'n/a'} / ${demo.aggregate.finiteResultRange.max ?? 'n/a'}`} /><Metric label="Edge classes" value={demo.aggregate.edgeClassifications.join(', ')} /></div><div className="break-all">Tree root (FNV-1a non-cryptographic semantic checksum): {demo.aggregate.treeRoot}</div><div className="break-all">Aggregate hash (FNV-1a non-cryptographic semantic checksum): {demo.aggregate.checksum}</div><div>Contradictions: {demo.aggregate.contradictions.map(item => `${item.code}: ${item.detected ? 'detected' : 'clear'}`).join(' · ')}</div></div>
+        <div className="border border-border/50 p-3 text-xs flex flex-col gap-1"><strong>{demo.boundary.level}/L3 boundary reference</strong><div>Source: {demo.boundary.sourceReceipt.sourceId}</div><div className="break-all">Source receipt: {demo.boundary.sourceReceipt.receiptChecksum} · L1 root (FNV-1a non-cryptographic semantic checksum): {demo.boundary.l1TreeRoot}</div><div className="break-all">Boundary hash (FNV-1a non-cryptographic semantic checksum): {demo.boundary.checksum}</div><div>Contradictions: {demo.boundary.contradictions.map(item => `${item.code}: ${item.detected ? 'detected' : 'clear'}`).join(' · ')}</div></div>
+        <div className="text-xs text-muted-foreground">All contradiction statuses: {contradictions.map(item => `${item.code}: ${item.detected ? 'detected' : 'clear'}`).join(' · ')}</div>
+      </div>}
+    </div>
+  </div>;
+}
+
+function WasmInspectorSection() {
+  const [hexInput, setHexInput] = useState('');
+  const [inspection, setInspection] = useState<WasmInspection | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const parseHex = (source: string): Uint8Array => {
+    const compact = source.trim().replace(/\s+/g, '');
+    if (!compact) throw new WasmInspectorError('Provide hexadecimal bytes before inspection.', 0);
+    if (!/^[0-9a-fA-F]+$/.test(compact) || compact.length % 2 !== 0) throw new WasmInspectorError('Hex must be whitespace-separated or contiguous complete byte pairs.', 0);
+    if (compact.length / 2 > WASM_INSPECTOR_MAX_BYTES) throw new WasmInspectorError(`Input exceeds the ${WASM_INSPECTOR_MAX_BYTES}-byte UI boundary.`, WASM_INSPECTOR_MAX_BYTES);
+    return new Uint8Array(compact.match(/.{2}/g)!.map(pair => Number.parseInt(pair, 16)));
+  };
+  const inspect = () => {
+    try { setError(null); setInspection(inspectWasmBinary(parseHex(hexInput))); }
+    catch (issue) { setInspection(null); setError(issue instanceof WasmInspectorError ? `${issue.message} (offset ${issue.offset})` : 'Unexpected input parsing failure.'); }
+  };
+  const loadFixture = () => { setHexInput('00 61 73 6d 01 00 00 00 01 04 01 60 00 00 03 02 01 00 0a 04 01 02 00 0b'); setInspection(null); setError(null); };
+  return <div className="border border-border bg-card flex flex-col" data-testid="wasm-inspector">
+    <div className="bg-muted px-3 py-2 border-b border-border text-xs font-bold uppercase tracking-wider">Rendered-only WASM Structure Inspector</div>
+    <div className="p-4 flex flex-col gap-4">
+      <div className="text-xs text-muted-foreground">Structural acceptance is rendered-only and does not assert semantic equivalence or safe execution. No bytes are compiled, instantiated, fetched, validated by a WebAssembly API, or evaluated.</div>
+      <label className="flex flex-col gap-1 text-[10px] uppercase tracking-wider text-muted-foreground">Bounded hexadecimal input (≤ {WASM_INSPECTOR_MAX_BYTES} bytes)<textarea data-testid="wasm-hex" aria-label="Bounded WebAssembly hexadecimal input" value={hexInput} onChange={event => setHexInput(event.target.value)} className="min-h-24 bg-black/40 border border-border p-2 font-mono text-xs text-foreground normal-case" placeholder="00 61 73 6d ..." /></label>
+      <div className="flex flex-wrap gap-2"><Button type="button" data-testid="wasm-load-fixture" variant="outline" onClick={loadFixture} className="rounded-none text-xs">LOAD INERT FIXTURE</Button><Button type="button" data-testid="wasm-inspect" onClick={inspect} className="rounded-none tracking-widest font-bold"><Play className="w-4 h-4 mr-2" />INSPECT STRUCTURE</Button></div>
+      {error && <div data-testid="wasm-error" role="alert" className="border border-destructive/50 bg-destructive/10 p-3 text-xs text-destructive">WasmInspectorError: {error}</div>}
+      {inspection && <div className="flex flex-col gap-4" data-testid="wasm-result"><div className="grid grid-cols-2 md:grid-cols-4 gap-3"><Metric label="Mode" value={inspection.mode} /><Metric label="Status" value={inspection.status} /><Metric label="Bytes" value={inspection.byteLength} /><Metric label="Receipt" value={inspection.semanticReceipt} /></div><div className="text-xs border border-border/50 p-3">Rendered-only structural acceptance is not semantic equivalence and makes no safe-execution claim.</div><div className="grid grid-cols-1 md:grid-cols-2 gap-3">{inspection.sections.map(section => <div key={`${section.id}-${section.headerOffset}`} className="border border-border/50 p-2 text-xs font-mono">Section {section.id} ({section.name}) · header {section.headerOffset} · payload offset {section.payloadOffset} · length {section.payloadLength}</div>)}</div><div className="grid grid-cols-2 md:grid-cols-4 gap-3"><Metric label="Types / imports" value={`${inspection.metadata.typeCount} / ${inspection.metadata.importCount}`} /><Metric label="Functions / code" value={`${inspection.metadata.functionCount} / ${inspection.metadata.codeBodyCount}`} /><Metric label="Memories" value={inspection.metadata.memories.length} /><Metric label="Exports" value={inspection.metadata.exports.length} /></div><div className="text-xs">Imports: {inspection.metadata.importCount ? String(inspection.metadata.importCount) : 'none'} · Memories with explicit maximum: {inspection.metadata.memories.length ? inspection.metadata.memories.map(memory => `${memory.minimumPages}/${memory.maximumPages} pages`).join(', ') : 'none'} · Exports: {inspection.metadata.exports.length ? inspection.metadata.exports.map(entry => `${entry.name} (${entry.kind} #${entry.index})`).join(', ') : 'none'}</div><div className="text-xs">Findings: {inspection.findings.map(item => `${item.severity}/${item.code}: ${item.message}`).join(' · ')}<br />Contradictions: {inspection.contradictions.length ? inspection.contradictions.map(item => `${item.code}: ${item.message}`).join(' · ') : 'none'}</div><pre className="max-h-48 overflow-auto bg-black/50 border border-border p-2 text-[10px] font-mono">{inspection.annotatedHex}</pre></div>}
+    </div>
+  </div>;
+}
+
+function VectorLabSection() {
+  const [trial, setTrial] = useState<VectorLabTrial | null>(null);
+  const layouts = useMemo(() => compareVectorLayouts(), []);
+  const pairs = trial ? (() => { const vectors = { A: seededVector(trial.seeds.a, trial.dimensions), B: seededVector(trial.seeds.b, trial.dimensions), C: seededVector(trial.seeds.c, trial.dimensions) }; return [['A', 'B'], ['A', 'C'], ['B', 'C']].map(([left, right]) => ({ left, right, distance: hammingDistance(vectors[left as keyof typeof vectors], vectors[right as keyof typeof vectors]), similarity: similarity(vectors[left as keyof typeof vectors], vectors[right as keyof typeof vectors]) })); })() : [];
+  return <div className="border border-border bg-card flex flex-col" data-testid="vector-lab"><div className="bg-muted px-3 py-2 border-b border-border text-xs font-bold uppercase tracking-wider">Deterministic 16,384-bit Vector Lab</div><div className="p-4 flex flex-col gap-4"><div className="border border-violet-400/30 bg-violet-400/5 p-3 text-xs text-violet-200">Software-only typed-array/vector operations. No timing, AVX, cache, quantum, cognition, consciousness, or hardware-performance claim is made.</div><Button type="button" data-testid="vector-run" onClick={() => setTrial(runDefaultVectorTrial())} className="w-fit rounded-none tracking-widest font-bold"><Play className="w-4 h-4 mr-2" />RUN FIXED VECTOR TRIAL</Button>{trial && <div className="flex flex-col gap-4" data-testid="vector-result"><div className="grid grid-cols-2 md:grid-cols-4 gap-3"><Metric label="Dimensions" value={trial.dimensions} /><Metric label="Fixed seeds" value={`${trial.seeds.a}, ${trial.seeds.b}, ${trial.seeds.c}`} /><Metric label="Words / bytes" value={`${trial.a.wordCount} / ${trial.a.wordCount * 8}`} /><Metric label="Tail bits" value={trial.dimensions % 64} /></div><div className="grid grid-cols-1 md:grid-cols-3 gap-3">{pairs.map(pair => <div key={`${pair.left}-${pair.right}`} className="border border-border/50 p-3 text-xs"><strong>{pair.left} ↔ {pair.right}</strong><div>Hamming distance: {pair.distance}</div><div>Similarity: {pair.similarity.toFixed(6)}</div></div>)}</div><div className="text-xs">Operations: seeded binary vectors; XOR binding (commutative/self-inverse); analogy A:B :: C:? = B XOR A XOR C; cyclic permutation +73 then −73. Analogy receipt: {trial.analogy.hash} (FNV-1a checksum, not cryptographic proof) · analogy equals expected: {String(trial.analogyEqualsExpected)} · permutation round trip: {String(trial.permutationRoundTripEqualsA)}.</div><div className="grid grid-cols-1 md:grid-cols-2 gap-3">{layouts.map(layout => <div key={layout.dimensions} className="border border-border/50 p-2 text-xs">Neutral layout metadata: {layout.dimensions} bits · {layout.wordCount} words · {layout.bytes} bytes · tail {layout.tailBits} · unused tail {layout.unusedTailBits}</div>)}</div><div className="text-xs text-muted-foreground">Contradictions: {trial.contradictions.map(item => `${item.code}: ${item.detected ? 'detected' : 'clear'}`).join(' · ')}</div></div>}</div></div>;
+}
+
 function LegendSection() {
   const legends = [
     {
@@ -751,6 +807,31 @@ function LegendSection() {
       desc: "FNV-1a checksum of the explicit JSON object state without mutable time or identity."
     },
     {
+      name: "hierarchical semantic checkpoints",
+      kind: "Implemented computation",
+      desc: "Explicit L0 events aggregate to L1 and carry caller-supplied source references across rendered L2/L3 boundaries; FNV-1a values are non-cryptographic checksums, not signatures or proof."
+    },
+    {
+      name: "rendered-only WASM section parsing / ULEB128",
+      kind: "Implemented computation",
+      desc: "A bounded structural WebAssembly v1 container parser decodes sections and canonical unsigned LEB128 without compiling, validating, fetching, or executing bytes."
+    },
+    {
+      name: "typed-array vector operations",
+      kind: "Implemented computation",
+      desc: "Fixed-dimension BigUint64Array-compatible storage supports deterministic seeded vectors and XOR binding; it makes no processor-performance claim."
+    },
+    {
+      name: "Hamming similarity",
+      kind: "Implemented computation",
+      desc: "Similarity is the normalized complement of pairwise Hamming distance over explicit binary-vector dimensions."
+    },
+    {
+      name: "cyclic permutation",
+      kind: "Implemented computation",
+      desc: "A deterministic software operation moves each vector bit by an explicit modulo-dimension offset."
+    },
+    {
       name: "contradiction invariants",
       kind: "Implemented computation",
       desc: "Strict boolean checks verifying that derived metrics match across dependent properties."
@@ -822,6 +903,30 @@ export default function MatterLab() {
             <h3 className="text-lg font-bold uppercase tracking-wider text-amber-400">L0 Arithmetic and Bitwise Safety</h3>
           </div>
           <L0SafetySection />
+        </section>
+
+        <section className="flex flex-col gap-4">
+          <div className="flex items-center gap-2 border-b border-border/50 pb-2">
+            <Database className="w-5 h-5 text-amber-300" />
+            <h3 className="text-lg font-bold uppercase tracking-wider text-amber-300">Hierarchical Semantic Checkpoints</h3>
+          </div>
+          <CheckpointLedgerSection />
+        </section>
+
+        <section className="flex flex-col gap-4">
+          <div className="flex items-center gap-2 border-b border-border/50 pb-2">
+            <Binary className="w-5 h-5 text-cyan-400" />
+            <h3 className="text-lg font-bold uppercase tracking-wider text-cyan-400">Rendered-only WASM Structure Inspector</h3>
+          </div>
+          <WasmInspectorSection />
+        </section>
+
+        <section className="flex flex-col gap-4">
+          <div className="flex items-center gap-2 border-b border-border/50 pb-2">
+            <BrainCircuit className="w-5 h-5 text-violet-400" />
+            <h3 className="text-lg font-bold uppercase tracking-wider text-violet-400">Deterministic 16,384-bit Vector Lab</h3>
+          </div>
+          <VectorLabSection />
         </section>
 
         <section className="flex flex-col gap-4">
