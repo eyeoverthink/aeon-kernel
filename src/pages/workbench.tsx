@@ -103,44 +103,44 @@ export default function Workbench() {
         <div className="lg:col-span-8 flex flex-col gap-4 h-full overflow-hidden">
           
           <div className="flex-none flex gap-1 border-b border-border pb-2 overflow-x-auto">
-            <Button 
-              variant={activeTab === 'overview' ? 'default' : 'ghost'} 
-              size="sm" 
+            <Button
+              variant={activeTab === 'overview' ? 'default' : 'ghost'}
+              size="sm"
               className="text-xs font-bold uppercase tracking-wider rounded-none h-8"
               onClick={() => setActiveTab('overview')}
             >
               Overview
             </Button>
-            <Button 
-              variant={activeTab === 'execution' ? 'default' : 'ghost'} 
-              size="sm" 
+            <Button
+              variant={activeTab === 'execution' ? 'default' : 'ghost'}
+              size="sm"
               className="text-xs font-bold uppercase tracking-wider rounded-none h-8"
               disabled={!activeRun || activeRun.status === 'blocked'}
               onClick={() => setActiveTab('execution')}
             >
               Result & Vars
             </Button>
-            <Button 
-              variant={activeTab === 'compiler' ? 'default' : 'ghost'} 
-              size="sm" 
+            <Button
+              variant={activeTab === 'compiler' ? 'default' : 'ghost'}
+              size="sm"
               className="text-xs font-bold uppercase tracking-wider rounded-none h-8"
               disabled={!activeRun || activeRun.status === 'blocked'}
               onClick={() => setActiveTab('compiler')}
             >
               AST & Tokens
             </Button>
-            <Button 
-              variant={activeTab === 'disassembly' ? 'default' : 'ghost'} 
-              size="sm" 
+            <Button
+              variant={activeTab === 'disassembly' ? 'default' : 'ghost'}
+              size="sm"
               className="text-xs font-bold uppercase tracking-wider rounded-none h-8"
               disabled={!activeRun || activeRun.status === 'blocked'}
               onClick={() => setActiveTab('disassembly')}
             >
               Disassembly
             </Button>
-            <Button 
-              variant={activeTab === 'trace' ? 'default' : 'ghost'} 
-              size="sm" 
+            <Button
+              variant={activeTab === 'trace' ? 'default' : 'ghost'}
+              size="sm"
               className="text-xs font-bold uppercase tracking-wider rounded-none h-8"
               disabled={!activeRun || activeRun.status === 'blocked'}
               onClick={() => setActiveTab('trace')}
@@ -217,7 +217,7 @@ export default function Workbench() {
                   <Activity className="w-4 h-4 text-primary" />
                   Bounded Agents / Registers
                 </div>
-                
+
                 <div className="flex-1 p-4 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-6 bg-[#050508]">
                   {!activeRun ? (
                     <div className="col-span-full flex h-full items-center justify-center text-muted-foreground">
@@ -248,7 +248,7 @@ export default function Workbench() {
                           </div>
                         ))}
                       </div>
-                      
+
                       <div className="space-y-4">
                         <h3 className="text-xs text-muted-foreground uppercase tracking-widest border-b border-border/50 pb-1">Virtual Machine State</h3>
                         <div className="grid grid-cols-2 gap-2">
