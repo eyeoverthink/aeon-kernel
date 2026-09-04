@@ -21,6 +21,7 @@ import {
 import { buildCheckpointDemo } from '@/lib/checkpoint-ledger';
 import { inspectWasmBinary, WasmInspectorError, WASM_INSPECTOR_MAX_BYTES, type WasmInspection } from '@/lib/wasm-inspector';
 import { compareVectorLayouts, hammingDistance, runDefaultVectorTrial, seededVector, similarity, type VectorLabTrial } from '@/lib/vector-lab';
+import { buildDefaultTrialManifest, replayTrialManifest, serializeTrialManifest, type ReplayManifest, type TrialManifest } from '@/lib/trial-manifest';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -634,6 +635,76 @@ function CheckpointLedgerSection() {
   </div>;
 }
 
+function TrialManifestSection() {
+  const [manifest, setManifest] = useState<TrialManifest | null>(null);
+  const [replay, setReplay] = useState<ReplayManifest | null>(null);
+
+  const buildManifest = () => {
+    setManifest(buildDefaultTrialManifest());
+    setReplay(null);
+  };
+
+  const downloadManifest = () => {
+    if (!manifest) return;
+    const url = URL.createObjectURL(new Blob([serializeTrialManifest(manifest)], { type: 'application/json' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'aeon-trial-manifest-v1.json';
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return <div className="border border-border bg-card flex flex-col" data-testid="trial-manifest">
+    <div className="bg-muted px-3 py-2 border-b border-border text-xs font-bold uppercase tracking-wider">Deterministic Trial Manifest &amp; Replay</div>
+    <div className="p-4 flex flex-col gap-4">
+      <div className="border border-sky-400/30 bg-sky-400/5 p-3 text-xs text-sky-100">
+        Fixed, deterministic and replayable allowlisted trials only: no network, no native execution, and no WASM execution. FNV-1a values are non-cryptographic checksums, not signatures, authentication, or cryptographic proof.
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" data-testid="manifest-build" aria-label="Build default deterministic trial manifest" onClick={buildManifest} className="rounded-none tracking-widest font-bold">
+          <Play className="w-4 h-4 mr-2" />BUILD DEFAULT MANIFEST
+        </Button>
+        <Button type="button" data-testid="manifest-replay" aria-label="Replay built trial manifest" variant="outline" disabled={!manifest} onClick={() => manifest && setReplay(replayTrialManifest(manifest))} className="rounded-none tracking-widest font-bold">
+          REPLAY ALLOWLIST
+        </Button>
+        <Button type="button" data-testid="manifest-download" aria-label="Download built trial manifest JSON" variant="outline" disabled={!manifest} onClick={downloadManifest} className="rounded-none tracking-widest font-bold">
+          DOWNLOAD JSON
+        </Button>
+      </div>
+      {!manifest ? <div className="border border-border/50 bg-black/20 p-3 text-xs text-muted-foreground">No manifest built. Build the fixed five-entry bundle explicitly; no trial is created automatically.</div> : <>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
+          <Metric label="Schema" value={manifest.schemaVersion} color="text-sky-400" />
+          <Metric label="Model" value={manifest.model} color="text-sky-400" />
+          <Metric label="Manifest ID" value={manifest.manifestId} color="text-sky-400" />
+          <Metric label="Checksum" value={manifest.checksum} color="text-sky-400" />
+          <Metric label="Entry count" value={manifest.entries.length} color="text-sky-400" />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3">
+          {manifest.entries.map(entry => {
+            const replayEntry = replay?.entries.find(item => item.trialId === entry.trialId);
+            return <div key={entry.trialId} className="border border-border/50 bg-black/30 p-3 text-xs flex flex-col gap-2">
+              <div className="flex flex-wrap justify-between gap-2"><strong className="text-sky-300">{entry.trialId}</strong><Badge variant="outline" className="rounded-none text-[9px]">{entry.status.toUpperCase()}</Badge></div>
+              <div>Engine: <span className="font-mono">{entry.engineId} / {entry.engineVersion}</span></div>
+              <div className="break-all">Input checksum: <span className="font-mono">{entry.inputChecksum}</span></div>
+              <div className="break-all">Result checksum: <span className="font-mono">{entry.resultChecksum}</span></div>
+              {entry.sourceReceipt && <div className="break-all">Engine receipt: <span className="font-mono">{entry.sourceReceipt}</span></div>}
+              <div>Policy: <span className="font-mono">{JSON.stringify(entry.policy)}</span></div>
+              {replayEntry && <div className={`border-t border-border/40 pt-2 ${replayEntry.status === 'reproduced' ? 'text-emerald-400' : 'text-destructive'}`}>
+                Replay: {replayEntry.status.toUpperCase()} · mismatch fields: {replayEntry.mismatchFields.length ? replayEntry.mismatchFields.join(', ') : 'none'}
+              </div>}
+            </div>;
+          })}
+        </div>
+        {replay && <div className={`border p-3 text-xs flex flex-col gap-2 ${replay.reproduced ? 'border-emerald-400/40 bg-emerald-400/5' : 'border-destructive/40 bg-destructive/5'}`} data-testid="manifest-replay-result">
+          <strong>Overall reproduced: {replay.reproduced ? 'YES' : 'NO'}</strong>
+          <div className="break-all">Replay checksum: <span className="font-mono">{replay.checksum}</span></div>
+          <div className="break-all">Replay receipt: <span className="font-mono">{replay.receipt}</span></div>
+        </div>}
+      </>}
+    </div>
+  </div>;
+}
+
 function WasmInspectorSection() {
   const [hexInput, setHexInput] = useState('');
   const [inspection, setInspection] = useState<WasmInspection | null>(null);
@@ -812,6 +883,11 @@ function LegendSection() {
       desc: "Explicit L0 events aggregate to L1 and carry caller-supplied source references across rendered L2/L3 boundaries; FNV-1a values are non-cryptographic checksums, not signatures or proof."
     },
     {
+      name: "deterministic trial manifests and allowlisted replay",
+      kind: "Implemented computation",
+      desc: "A fixed five-engine JSON manifest is built explicitly, checksummed with non-cryptographic FNV-1a, and replayed only through bounded allowlisted engines; no network, native execution, or WASM execution occurs."
+    },
+    {
       name: "rendered-only WASM section parsing / ULEB128",
       kind: "Implemented computation",
       desc: "A bounded structural WebAssembly v1 container parser decodes sections and canonical unsigned LEB128 without compiling, validating, fetching, or executing bytes."
@@ -911,6 +987,14 @@ export default function MatterLab() {
             <h3 className="text-lg font-bold uppercase tracking-wider text-amber-300">Hierarchical Semantic Checkpoints</h3>
           </div>
           <CheckpointLedgerSection />
+        </section>
+
+        <section className="flex flex-col gap-4">
+          <div className="flex items-center gap-2 border-b border-border/50 pb-2">
+            <Database className="w-5 h-5 text-sky-400" />
+            <h3 className="text-lg font-bold uppercase tracking-wider text-sky-400">Deterministic Trial Manifest &amp; Replay</h3>
+          </div>
+          <TrialManifestSection />
         </section>
 
         <section className="flex flex-col gap-4">
