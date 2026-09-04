@@ -41,13 +41,13 @@ export function MatrixRain() {
   );
 }
 
-export function SystemLog({ items }: { items: { step: string, ms: number }[] }) {
+export function SystemLog({ items }: { items: { step: string, value: number, unit: string }[] }) {
   return (
     <div className="font-mono text-xs space-y-1">
       {items.map((item, i) => (
         <div key={i} className="flex justify-between items-center text-muted-foreground border-b border-border/50 pb-1 mb-1 last:border-0">
           <span className="text-secondary">{item.step}</span>
-          <span>{item.ms}ms</span>
+          <span>{item.value} <span className="text-[10px] opacity-50">{item.unit}</span></span>
         </div>
       ))}
     </div>
