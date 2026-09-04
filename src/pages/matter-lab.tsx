@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useKernelStore } from '@/hooks/use-kernel';
 import { cn } from '@/lib/utils';
 import {
@@ -6,11 +6,9 @@ import {
   type IntegrityTrial,
   type DataRigidbody
 } from '@/lib/integrity';
-import { 
-  CVE_EVIDENCE_FIXTURES, 
-  scanCveEvidenceRecords,
-  ANTIBODY_PLAYBACK_METADATA
-} from '@/lib/antibody';
+import { buildCveFeed, createCveFeedPlayback, advanceCveFeedPlayback } from '@/lib/cve-feed';
+import { analyzeCircuit, buildFullAdderDemo, decodeSilcFrame, encodeSilcFrame, SILC_FRAME_BYTES } from '@/lib/circuit-lab';
+import { DEFAULT_L0_TRIAL_CASES, runL0TrialSuite, type L0TrialSuite } from '@/lib/l0-safety';
 import {
   analyzeBicameralRun
 } from '@/lib/bicameral';
@@ -23,7 +21,7 @@ import {
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Microscope, Database, BrainCircuit, Binary, Bug, PlayCircle, PauseCircle, SkipForward, HelpCircle, Play, Info } from 'lucide-react';
+import { Microscope, Database, BrainCircuit, Binary, Bug, SkipForward, HelpCircle, Play, Info } from 'lucide-react';
 
 function Metric({ label, value, color = "text-foreground" }: { label: string, value: string | number, color?: string }) {
   return (
@@ -261,119 +259,22 @@ function IntegritySection({ onTrialChange }: { onTrialChange?: (trial: Integrity
   );
 }
 
-function CveAntibodySection() {
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [isAutoPlaying, setIsAutoPlaying] = useState(false);
-
-  const results = useMemo(() => scanCveEvidenceRecords(CVE_EVIDENCE_FIXTURES), []);
-
-  useEffect(() => {
-    if (!isAutoPlaying) return;
-    const interval = setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % CVE_EVIDENCE_FIXTURES.length);
-    }, ANTIBODY_PLAYBACK_METADATA.intervalMs);
-    return () => clearInterval(interval);
-  }, [isAutoPlaying]);
-
-  const currentFixture = CVE_EVIDENCE_FIXTURES[currentIndex]!;
-  const currentResult = results[currentIndex]!;
-
-  return (
-    <div className="border border-border bg-card flex flex-col" data-testid="antibody-feed">
-      <div className="bg-muted px-3 py-2 border-b border-border flex justify-between items-center">
-        <div className="text-xs font-bold uppercase tracking-wider flex items-center gap-2">
-          <Bug className="w-4 h-4 text-orange-500" />
-          Inert Evidence Feed
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="text-[10px] bg-orange-500/10 text-orange-500 rounded-none border-orange-500/30">
-            SUPPLIED FIXTURES ONLY
-          </Badge>
-        </div>
-      </div>
-
-      <div className="p-4 flex flex-col gap-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-border/50 pb-4 gap-4">
-          <div className="flex flex-col gap-1">
-            <h4 className="text-lg font-bold text-foreground">{currentFixture.name} ({currentFixture.id})</h4>
-            <div className="text-xs text-muted-foreground font-mono flex flex-wrap items-center gap-2">
-              <span>CVSS: {currentFixture.cvss}</span> 
-              <span className="hidden sm:inline">|</span> 
-              <span>Technique: {currentFixture.technique}</span> 
-              <span className="hidden sm:inline">|</span>
-              <span className="text-orange-400">Not a live network feed</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 self-start md:self-auto">
-            <Button 
-              data-testid="antibody-advance"
-              variant="outline" 
-              size="sm" 
-              onClick={() => setCurrentIndex((prev) => (prev + 1) % CVE_EVIDENCE_FIXTURES.length)}
-              className="rounded-none tracking-widest text-[10px] font-bold"
-            >
-              <SkipForward className="w-3 h-3 mr-2" /> ADVANCE
-            </Button>
-            <Button 
-              data-testid="antibody-auto"
-              variant={isAutoPlaying ? 'default' : 'outline'} 
-              size="sm" 
-              onClick={() => setIsAutoPlaying(!isAutoPlaying)}
-              className={`rounded-none tracking-widest text-[10px] font-bold ${isAutoPlaying ? 'bg-orange-500 text-black hover:bg-orange-600' : ''}`}
-            >
-              {isAutoPlaying ? <PauseCircle className="w-3 h-3 mr-2" /> : <PlayCircle className="w-3 h-3 mr-2" />} 
-              AUTO PLAY
-            </Button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div className="flex flex-col gap-2">
-            <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Inert Indicator Evidence</div>
-            <div className="bg-black/50 border border-border p-4 font-mono text-xs text-foreground/80 break-all min-h-[120px] flex items-center">
-              {currentFixture.inertIndicatorText}
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Antibody Classification Result</div>
-            <div className={`border p-4 flex flex-col gap-3 min-h-[120px] justify-center ${
-              currentResult.status === 'quarantined' ? 'bg-destructive/10 border-destructive/50' : 'bg-green-500/10 border-green-500/50'
-            }`}>
-              <div className="flex justify-between items-start">
-                <span className={`text-xl font-bold uppercase tracking-widest ${
-                  currentResult.status === 'quarantined' ? 'text-destructive' : 'text-green-500'
-                }`}>
-                  {currentResult.status}
-                </span>
-                <span className="text-sm font-mono text-muted-foreground">Score: {currentResult.riskScore}</span>
-              </div>
-
-              {currentResult.matchedAntibody ? (
-                <div className="flex flex-col gap-1 text-xs">
-                  <div><strong className="text-muted-foreground">Antibody:</strong> {currentResult.matchedAntibody.id} ({currentResult.matchedAntibody.category})</div>
-                  <div><strong className="text-muted-foreground">Threshold/Tolerance:</strong> {currentResult.matchedAntibody.toleranceThreshold}</div>
-                  <div><strong className="text-muted-foreground">Response:</strong> {currentResult.matchedAntibody.quarantineResponse}</div>
-                  {currentResult.locator && (
-                    <div><strong className="text-muted-foreground">Locator:</strong> line:{currentResult.locator.line} col:{currentResult.locator.column} offset:{currentResult.locator.offset}</div>
-                  )}
-                </div>
-              ) : (
-                <div className="text-xs text-muted-foreground">No definitive signature matched. Evidence classified as safe.</div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-orange-500/5 border border-orange-500/20 p-3 flex items-start gap-3">
-          <Info className="w-5 h-5 text-orange-500 flex-shrink-0 mt-0.5" />
-          <div className="text-xs text-orange-500/80 leading-relaxed">
-            <strong>SECURITY NOTE:</strong> The evidence shown above is composed of static text fixtures. It is never fetched from a network, never parsed as executable code, and never interpolated into system commands. The classifiers operate strictly via deterministic regular expressions over plain text.
-          </div>
-        </div>
-      </div>
+function SourceAttributedCveFeedSection() {
+  const feed = useMemo(() => buildCveFeed('2026-09-04'), []);
+  const [playback, setPlayback] = useState(() => createCveFeedPlayback(feed));
+  const entry = playback.cursor >= 0 ? feed.records[playback.cursor] : null;
+  return <div className="border border-border bg-card flex flex-col" data-testid="cve-source-feed">
+    <div className="bg-muted px-3 py-2 border-b border-border flex flex-wrap justify-between gap-2 items-center"><div className="text-xs font-bold uppercase tracking-wider flex items-center gap-2"><Bug className="w-4 h-4 text-orange-500" />Source-attributed CVE feed</div><Badge variant="outline" className="rounded-none text-[10px]">BUNDLED SNAPSHOT · NOT LIVE</Badge></div>
+    <div className="p-4 flex flex-col gap-4">
+      <div className="flex flex-wrap justify-between gap-3"><div className="text-xs font-mono text-muted-foreground">As-of {feed.asOfDate} · {feed.retrievalMode} · receipt {feed.receipt}</div><Button type="button" data-testid="cve-feed-advance" variant="outline" size="sm" onClick={() => setPlayback(value => advanceCveFeedPlayback(feed, value))} className="rounded-none tracking-widest text-[10px] font-bold"><SkipForward className="w-3 h-3 mr-2" />ADVANCE</Button></div>
+      <div className="text-[10px] text-muted-foreground uppercase">Playback: {playback.schedule}; timers created: {String(playback.timerCreated)}; explicit advances: {playback.advances}</div>
+      {entry ? <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" data-testid="cve-feed-record">
+        <div className="flex flex-col gap-2"><h4 className="font-bold">{entry.record.name} ({entry.record.id})</h4><div className="grid grid-cols-2 gap-3"><Metric label="CVSS" value={entry.record.cvss} /><Metric label="Technique" value={entry.record.technique} /><Metric label="Source organization" value={entry.record.sourceOrganization} /><Metric label="Freshness" value={`${entry.freshnessAgeDays} days (${entry.freshnessStatus})`} /><Metric label="Published / modified" value={`${entry.record.publishedDate} / ${entry.record.modifiedDate}`} /><Metric label="Record receipt" value={entry.receipt} /></div><a data-testid="cve-source-link" href={entry.record.advisoryUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-secondary underline break-all">Allowlisted advisory: {entry.record.advisoryUrl}</a></div>
+        <div className="border border-orange-500/30 bg-orange-500/5 p-3 text-xs flex flex-col gap-2"><div><strong>Inert summary:</strong> {entry.record.inertSummary}</div><div><strong>Quarantine classification:</strong> {entry.scan.status} · score {entry.scan.riskScore}</div><div><strong>Classifier metadata:</strong> {entry.scan.matchedAntibody ? `${entry.scan.matchedAntibody.id} (${entry.scan.matchedAntibody.category}), threshold ${entry.scan.matchedAntibody.toleranceThreshold}` : 'no matched antibody'}</div><div><strong>Locator:</strong> {entry.scan.locator ? `line ${entry.scan.locator.line}, column ${entry.scan.locator.column}, offset ${entry.scan.locator.offset}` : 'none'}</div><div><strong>Scan receipt:</strong> {entry.scan.receiptHash}</div></div>
+      </div> : <div className="text-xs text-muted-foreground border border-border/50 p-4">No record selected. Advance the local snapshot explicitly; no timer or autoplay is used.</div>}
+      <div className="text-xs text-muted-foreground">Contradictions: {feed.contradictions.length ? feed.contradictions.map(item => `${item.recordId}: ${item.message}`).join(' | ') : 'none detected'}</div>
     </div>
-  );
+  </div>;
 }
 
 function BicameralSection() {
@@ -674,6 +575,44 @@ function LatticeGateSection({ integrityTrial }: { integrityTrial: IntegrityTrial
   );
 }
 
+const FULL_ADDER_TRUTH_TABLE = [
+  [0, 0, 0, 0, 0], [0, 0, 1, 1, 0], [0, 1, 0, 1, 0], [0, 1, 1, 0, 1],
+  [1, 0, 0, 1, 0], [1, 0, 1, 0, 1], [1, 1, 0, 0, 1], [1, 1, 1, 1, 1],
+] as const;
+
+function CircuitLabSection() {
+  const [bits, setBits] = useState({ a: 0 as 0 | 1, b: 0 as 0 | 1, cin: 0 as 0 | 1 });
+  const [analysis, setAnalysis] = useState<ReturnType<typeof analyzeCircuit> | null>(null);
+  const [frame, setFrame] = useState<ReturnType<typeof decodeSilcFrame> | null>(null);
+  const run = () => {
+    const netlist = buildFullAdderDemo();
+    const truthTable = FULL_ADDER_TRUTH_TABLE.map(([a, b, cin, sum, carry]) => ({ inputs: { a, b, cin }, expected: { sum, carry } }));
+    const output = analyzeCircuit(netlist, { cycles: [bits], truthTable, mutationSeed: 0x51ac, candidates: 4 });
+    const netlistPayload = new TextEncoder().encode('FA:a,b,cin;X,X,A,A,O,R');
+    const tracePayload = new TextEncoder().encode(`${bits.a}${bits.b}${bits.cin}>${output.run.cycles[0]!.outputs.sum}${output.run.cycles[0]!.outputs.carry}`);
+    const encoded = encodeSilcFrame({ generation: 1, gateCount: netlist.gates.length, traceCount: output.run.cycles.length, netlistPayload, tracePayload });
+    setAnalysis(output); setFrame(decodeSilcFrame(encoded));
+  };
+  return <div className="border border-border bg-card flex flex-col" data-testid="circuit-lab">
+    <div className="bg-muted px-3 py-2 border-b border-border text-xs font-bold uppercase tracking-wider">Deterministic Circuit Lab</div>
+    <div className="p-4 flex flex-col gap-4">
+      <div className="text-xs text-muted-foreground">Boolean bits only. This model makes no claim of hardware timing, physical equivalence, voltage, propagation delay, or physical registers.</div>
+      <div className="flex flex-wrap items-end gap-4 bg-black/40 p-3 border border-border">{(['a', 'b', 'cin'] as const).map(name => <label key={name} className="flex flex-col gap-1 text-[10px] uppercase text-muted-foreground">{name.toUpperCase()} bit<select data-testid={`circuit-${name}`} value={bits[name]} onChange={event => setBits(current => ({ ...current, [name]: Number(event.target.value) as 0 | 1 }))} className="bg-background border border-border p-2 font-mono text-foreground"><option value={0}>0</option><option value={1}>1</option></select></label>)}<Button type="button" data-testid="circuit-run" onClick={run} className="rounded-none tracking-widest font-bold"><Play className="w-4 h-4 mr-2" />RUN CIRCUIT</Button></div>
+      {analysis && frame && <div className="flex flex-col gap-4" data-testid="circuit-result">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3"><Metric label="Current sum bit" value={analysis.run.cycles[0]!.outputs.sum} /><Metric label="Current carry bit" value={analysis.run.cycles[0]!.outputs.carry} /><Metric label="Prior-cycle registeredSum bit" value={analysis.run.cycles[0]!.outputs.registeredSum} /><Metric label="Truth score" value={`${analysis.truthTable!.matched}/${analysis.truthTable!.total} (${(analysis.truthTable!.score * 100).toFixed(0)}%)`} /><Metric label="Circuit receipt" value={analysis.run.receipt} /><Metric label="SILC bytes" value={`${SILC_FRAME_BYTES} bytes`} /><Metric label="Checksum" value={`0x${frame.checksum.toString(16).padStart(8, '0')}`} /></div>
+        <div className="text-xs border border-border/50 p-3">SILC strict decode round trip: successful · magic SILC · schema {frame.schema} · generation {frame.generation} · gates {frame.gateCount} · traces {frame.traceCount} · exactly {SILC_FRAME_BYTES} bytes.</div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">{analysis.candidates.map((candidate, index) => <div key={index} className="border border-border/50 p-3 text-xs font-mono"><strong>Seeded candidate {index + 1} ({candidate.seed}): {candidate.accepted ? 'accepted' : 'rejected'}</strong><div>Before score: {candidate.before.matched}/{candidate.before.total} · {candidate.beforeReceipt}</div><div>After score: {candidate.after ? `${candidate.after.matched}/${candidate.after.total} · ${candidate.afterReceipt}` : 'not scored'}</div><div>Evidence: {candidate.reason ?? 'legal mutation validated and scored'}</div></div>)}</div>
+        <div className="text-xs text-muted-foreground">Contradictions: {analysis.run.contradictions.map(item => `${item.code}: ${item.detected ? 'detected' : 'clear'}`).join(' · ')}</div>
+      </div>}
+    </div>
+  </div>;
+}
+
+function L0SafetySection() {
+  const [suite, setSuite] = useState<L0TrialSuite | null>(null);
+  return <div className="border border-border bg-card flex flex-col" data-testid="l0-safety"><div className="bg-muted px-3 py-2 border-b border-border text-xs font-bold uppercase tracking-wider">L0 Arithmetic and Bitwise Safety</div><div className="p-4 flex flex-col gap-4"><div className="text-xs text-muted-foreground">Evaluates explicit numeric operands only; it does not parse or execute source text.</div><Button type="button" data-testid="l0-run" onClick={() => setSuite(runL0TrialSuite(DEFAULT_L0_TRIAL_CASES))} className="w-fit rounded-none tracking-widest font-bold"><Play className="w-4 h-4 mr-2" />RUN DEFAULT SUITE</Button>{suite && <><div className="text-xs">Suite receipt {suite.receiptHash} · accepted: {String(suite.accepted)}</div><div className="grid grid-cols-1 lg:grid-cols-2 gap-3">{suite.cases.map(item => <div key={item.id} className="border border-border/50 p-3 text-xs flex flex-col gap-1"><strong>{item.id}: {item.operation}({item.evidence.left}, {item.evidence.right}) = {item.result}</strong><div>Classification: {item.classification} · receipt {item.receiptHash} · accepted {String(item.accepted)}</div><div>Policy: {item.policy.evaluationRule}</div>{item.evidence.signed64Result && <div>Signed-64 evidence: left {item.evidence.signed64Left}, right {item.evidence.signed64Right}, result {item.evidence.signed64Result}</div>}<div>Contradictions: {item.contradictions.map(c => `${c.code}: ${c.detected ? 'detected' : 'clear'}`).join(' · ')}</div></div>)}</div></>}</div></div>;
+}
+
 function LegendSection() {
   const legends = [
     {
@@ -732,9 +671,39 @@ function LegendSection() {
       desc: "Integer scale assigning danger scores to matched signatures."
     },
     {
-      name: "timer-based fixture playback as measured UI behavior but not live data",
-      kind: "Measured telemetry",
-      desc: "React tick intervals automating local inert string progression (with supplied fixtures)."
+      name: "explicit-call bundled CVE playback",
+      kind: "Implemented computation",
+      desc: "Attributed local snapshot records advance only when the user explicitly calls playback; no timer or live retrieval exists."
+    },
+    {
+      name: "SILC codec and checksum",
+      kind: "Implemented computation",
+      desc: "A fixed 512-byte SILC frame uses strict decode validation and FNV-1a checksum verification."
+    },
+    {
+      name: "synchronous logic cycles and truth-table scoring",
+      kind: "Implemented computation",
+      desc: "Boolean bits are evaluated per bounded cycle, registers latch together, and all eight full-adder rows are scored."
+    },
+    {
+      name: "seeded candidate mutation",
+      kind: "Implemented computation",
+      desc: "A deterministic seed produces bounded legal netlist candidates with before/after truth-score evidence."
+    },
+    {
+      name: "attributed bundled CVE metadata",
+      kind: "Implemented computation",
+      desc: "Allowlisted advisory attribution, dates, freshness, and inert classifier metadata are local snapshot data, not remote evidence."
+    },
+    {
+      name: "Java-compatible power edge classification",
+      kind: "Implemented computation",
+      desc: "Explicit numeric power operands classify NaN domains, overflow, and zero-to-negative boundaries."
+    },
+    {
+      name: "signed-64 BigInt narrowing",
+      kind: "Implemented computation",
+      desc: "Bitwise operands are truncated and narrowed with BigInt.asIntN(64), with exact decimal-string results."
     },
     {
       name: "Shannon byte entropy",
@@ -833,18 +802,34 @@ export default function MatterLab() {
       <div className="grid grid-cols-1 gap-8">
         <section className="flex flex-col gap-4">
           <div className="flex items-center gap-2 border-b border-border/50 pb-2">
-            <Binary className="w-5 h-5 text-secondary" />
-            <h3 className="text-lg font-bold uppercase tracking-wider text-secondary">FRAY Binary Integrity</h3>
+            <Binary className="w-5 h-5 text-sky-400" />
+            <h3 className="text-lg font-bold uppercase tracking-wider text-sky-400">Deterministic Circuit Lab</h3>
           </div>
-          <IntegritySection onTrialChange={setLatestIntegrityTrial} />
+          <CircuitLabSection />
         </section>
 
         <section className="flex flex-col gap-4">
           <div className="flex items-center gap-2 border-b border-border/50 pb-2">
             <Bug className="w-5 h-5 text-orange-500" />
-            <h3 className="text-lg font-bold uppercase tracking-wider text-orange-500">Inert CVE Antibody Classification</h3>
+            <h3 className="text-lg font-bold uppercase tracking-wider text-orange-500">Source-attributed CVE Feed</h3>
           </div>
-          <CveAntibodySection />
+          <SourceAttributedCveFeedSection />
+        </section>
+
+        <section className="flex flex-col gap-4">
+          <div className="flex items-center gap-2 border-b border-border/50 pb-2">
+            <Binary className="w-5 h-5 text-amber-400" />
+            <h3 className="text-lg font-bold uppercase tracking-wider text-amber-400">L0 Arithmetic and Bitwise Safety</h3>
+          </div>
+          <L0SafetySection />
+        </section>
+
+        <section className="flex flex-col gap-4">
+          <div className="flex items-center gap-2 border-b border-border/50 pb-2">
+            <Binary className="w-5 h-5 text-secondary" />
+            <h3 className="text-lg font-bold uppercase tracking-wider text-secondary">FRAY Binary Integrity</h3>
+          </div>
+          <IntegritySection onTrialChange={setLatestIntegrityTrial} />
         </section>
 
         <section className="flex flex-col gap-4">
