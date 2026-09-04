@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useKernelStore } from '@/hooks/use-kernel';
 import { cn } from '@/lib/utils';
-import { 
+import {
   runIntegrityTrial, 
   type IntegrityTrial,
   type DataRigidbody
@@ -11,9 +11,16 @@ import {
   scanCveEvidenceRecords,
   ANTIBODY_PLAYBACK_METADATA
 } from '@/lib/antibody';
-import { 
+import {
   analyzeBicameralRun
 } from '@/lib/bicameral';
+import {
+  analyzeLatticeGate,
+  LATTICE_GATE_PHI,
+  DEFAULT_LATTICE_GATE_THRESHOLD,
+  type LatticeGateResult
+} from '@/lib/lattice-gate';
+
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Microscope, Database, BrainCircuit, Binary, Bug, PlayCircle, PauseCircle, SkipForward, HelpCircle, Play, Info } from 'lucide-react';
@@ -45,7 +52,7 @@ function RigidbodyCell({ body, isSelected, onClick }: { body: DataRigidbody, isS
   );
 }
 
-function IntegritySection() {
+function IntegritySection({ onTrialChange }: { onTrialChange?: (trial: IntegrityTrial) => void }) {
   const activeRun = useKernelStore((state) => state.activeRun);
   const [trackCount, setTrackCount] = useState(5);
   const [noiseRatio, setNoiseRatio] = useState(0.35);
@@ -75,6 +82,7 @@ function IntegritySection() {
     setTrialDuration(end - start);
     setTrial(result);
     setSelectedBodyIndex(0);
+    onTrialChange?.(result);
   };
 
   if (!isValidRun) {
@@ -468,6 +476,204 @@ function BicameralSection() {
   );
 }
 
+
+function LatticeGateSection({ integrityTrial }: { integrityTrial: IntegrityTrial | null }) {
+  const activeRun = useKernelStore((state) => state.activeRun);
+  const [threshold, setThreshold] = useState(DEFAULT_LATTICE_GATE_THRESHOLD);
+
+  const isValidRun = activeRun?.promotion === 'promoted' && activeRun.bytecode.length > 0;
+
+  const result = useMemo(() => {
+    if (!isValidRun || !activeRun) return null;
+    return analyzeLatticeGate(activeRun, { threshold, integrityTrial: integrityTrial || undefined });
+  }, [activeRun, isValidRun, threshold, integrityTrial]);
+
+  if (!isValidRun) {
+    return (
+      <div className="border border-border bg-card p-6 flex flex-col items-center justify-center text-center gap-4">
+        <Binary className="w-12 h-12 text-muted-foreground opacity-50" />
+        <div className="text-sm font-bold uppercase tracking-widest text-muted-foreground">
+          No Promoted Workbench Run Available
+        </div>
+        <div className="text-xs text-muted-foreground max-w-md">
+          Lattice gate derivation requires completed bicameral monitoring from a compiled binary.
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="border border-border bg-card flex flex-col" data-testid="lattice-gate">
+      <div className="bg-muted px-3 py-2 border-b border-border flex justify-between items-center flex-wrap gap-2">
+        <div className="text-xs font-bold uppercase tracking-wider flex items-center gap-2">
+          <Binary className="w-4 h-4 text-emerald-400" />
+          Deterministic Lattice Gate
+        </div>
+      </div>
+
+      <div className="p-4 flex flex-col gap-6">
+        <div className="bg-emerald-500/5 border border-emerald-500/20 p-3 flex flex-col gap-2">
+          <div className="flex items-start gap-3">
+            <Info className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
+            <div className="text-xs text-emerald-400/80 leading-relaxed font-bold uppercase tracking-wider">
+              CONSTRAINT REMINDER: Lattice/transistor language is a software gate metaphor; phi and 0.618 are chosen math/policy constants, not physical laws; no amperes, voltage, electrons, physical semiconductor, hardware registers, quantum behavior, consciousness, fitness, or native execution are measured. {result?.disclaimer}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-end gap-4 bg-black/40 p-4 border border-border">
+          <div className="flex flex-col gap-1 w-full max-w-xs" data-testid="lattice-threshold">
+            <div className="flex justify-between items-center text-[10px] text-muted-foreground uppercase tracking-wider">
+              <span>Gate Threshold (0.01 - 0.99)</span>
+              <span className="font-mono text-emerald-400">{threshold.toFixed(4)}</span>
+            </div>
+            <input
+              type="range" min="0.01" max="0.99" step="0.01"
+              value={threshold} onChange={(e) => setThreshold(Number(e.target.value))}
+              className="w-full accent-emerald-500"
+            />
+          </div>
+          <div className="text-[10px] font-mono text-muted-foreground flex flex-col gap-1">
+            <span className="uppercase tracking-wider">Transform Constant (Phi)</span>
+            <span className="text-emerald-400">{LATTICE_GATE_PHI}</span>
+          </div>
+        </div>
+
+        {!integrityTrial && (
+          <div className="bg-orange-500/10 border border-orange-500/30 p-2 text-xs text-orange-400 uppercase tracking-widest text-center font-bold">
+            FRAY evidence not supplied. Using VM/bicameral evidence only. Run the integrity trial to supply FRAY data.
+          </div>
+        )}
+
+        {result && (
+          <>
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4" data-testid="lattice-mask">
+              <Metric label="Decision Mask (Bin)" value={result.decisionMaskBinary} color="text-emerald-400" />
+              <Metric label="Decision Mask (Hex)" value={`0x${result.decisionMask.toString(16).padStart(2, '0').toUpperCase()}`} color="text-emerald-400" />
+              <Metric label="Receipt Hash" value={result.receiptHash} color="text-emerald-400" />
+              <Metric label="Avg Source Score" value={result.averageSourceScore.toFixed(4)} />
+              <Metric label="Avg Resonance" value={result.averageResonance.toFixed(4)} />
+              <Metric label="Avg Conductance" value={result.averageConductanceIndex.toFixed(4)} />
+              <Metric label="Contradictions" value={result.contradictions.filter(c => c.detected).length} color={result.contradictions.some(c => c.detected) ? "text-destructive" : "text-emerald-400"} />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <div className="text-xs text-muted-foreground uppercase tracking-widest border-b border-border/50 pb-1 flex justify-between">
+                <span>Gate Channels</span>
+                <span>FRAY Recovery: {result.gates[0]?.evidence.recoverySupplied ? "SUPPLIED" : "NOT SUPPLIED"}</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mt-2" data-testid="lattice-channels">
+                {result.gates.map(gate => (
+                  <div key={gate.name} className="bg-black/40 border border-border/40 p-3 flex flex-col gap-3">
+                    <div className="flex justify-between items-center">
+                      <span className="font-bold text-xs uppercase tracking-widest text-emerald-300">{gate.name}</span>
+                      <Badge variant="outline" className={`text-[9px] rounded-none ${gate.state === 'open' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50' : 'bg-muted text-muted-foreground border-border'}`}>
+                        {gate.state.toUpperCase()} [{gate.maskBit}]
+                      </Badge>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-[10px] font-mono text-muted-foreground border-b border-border/30 pb-2">
+                      <div className="flex flex-col"><span>Source Score</span><span className="text-foreground">{gate.sourceScore.toFixed(4)}</span></div>
+                      <div className="flex flex-col"><span>Phase Product</span><span className="text-foreground">{gate.phaseProduct.toFixed(4)}</span></div>
+                      <div className="flex flex-col"><span>Nearest Vertex</span><span className="text-foreground">{gate.nearestVertex}</span></div>
+                      <div className="flex flex-col"><span>Divergence</span><span className="text-foreground">{gate.divergence.toFixed(4)}</span></div>
+                      <div className="flex flex-col"><span>Resonance</span><span className="text-foreground">{gate.resonance.toFixed(4)}</span></div>
+                      <div className="flex flex-col"><span>Threshold Margin</span><span className="text-foreground">{gate.gateMargin.toFixed(4)}</span></div>
+                      <div className="flex flex-col"><span>Conductance Idx</span><span className="text-foreground">{gate.conductanceIndex.toFixed(4)}</span></div>
+                    </div>
+
+                    <div className="flex flex-col gap-1 text-[9px] font-mono text-muted-foreground/70">
+                      <div className="uppercase text-muted-foreground mb-1">Evidence State</div>
+                      <div className="flex justify-between"><span>Struct:</span> <span>{gate.evidence.leftStructuralActivity.toFixed(4)}</span></div>
+                      <div className="flex justify-between"><span>Novelty:</span> <span>{gate.evidence.rightNoveltyActivity.toFixed(4)}</span></div>
+                      <div className="flex justify-between"><span>Coherence:</span> <span>{gate.evidence.coherence.toFixed(4)}</span></div>
+                      {gate.evidence.recoverySupplied && (
+                        <>
+                          <div className="flex justify-between"><span>Rec Bit Rate:</span> <span>{gate.evidence.recoveredBitRate?.toFixed(4)}</span></div>
+                          <div className="flex justify-between"><span>Obs Bit Error:</span> <span>{gate.evidence.observedTrackBitErrorRate?.toFixed(4)}</span></div>
+                          <div className="flex justify-between"><span>Obs Byte Error:</span> <span>{gate.evidence.observedTrackByteErrorRate?.toFixed(4)}</span></div>
+                        </>
+                      )}
+                      <div className="mt-1 pt-1 border-t border-border/20 truncate" title={gate.evidence.sourceFormula}>
+                        Eq: {gate.evidence.sourceFormula}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <div className="text-xs text-muted-foreground uppercase tracking-widest border-b border-border/50 pb-1">
+                Contradiction Invariants
+              </div>
+              <div className="flex flex-col gap-2 mt-2" data-testid="lattice-contradictions">
+                {result.contradictions.map(c => (
+                  <div key={c.code} className={`border p-2 text-xs font-mono flex flex-col md:flex-row md:items-center justify-between gap-2 ${
+                    c.detected ? 'bg-destructive/10 border-destructive/50 text-destructive' : 'bg-black/30 border-border/30 text-muted-foreground'
+                  }`}>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold">{c.code}</span>
+                      <span className="hidden md:inline text-foreground/50">-</span>
+                      <span className="text-[10px] text-foreground/70">{c.detail}</span>
+                    </div>
+                    <Badge variant="outline" className={`text-[9px] rounded-none shrink-0 ${c.detected ? 'bg-destructive text-destructive-foreground border-destructive' : 'bg-transparent text-muted-foreground border-muted'}`}>
+                      {c.detected ? 'DETECTED' : 'PASSED'}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="flex flex-col gap-2">
+                <div className="text-xs text-muted-foreground uppercase tracking-widest border-b border-border/50 pb-1">
+                  Timeline (Latest Cycles)
+                </div>
+                <div className="bg-black/50 border border-border/50 p-2 font-mono text-[10px] max-h-48 overflow-y-auto" data-testid="lattice-cycles">
+                  <table className="w-full text-left">
+                    <thead className="text-muted-foreground sticky top-0 bg-black/90">
+                      <tr>
+                        <th className="pb-1 font-normal">Idx</th>
+                        <th className="pb-1 font-normal">Step</th>
+                        <th className="pb-1 font-normal">Mask (Bin)</th>
+                        <th className="pb-1 font-normal text-right">Avg Res</th>
+                      </tr>
+                    </thead>
+                    <tbody className="text-foreground/80">
+                      {result.cycles.map(cycle => (
+                        <tr key={cycle.index} className="border-t border-border/20">
+                          <td className="py-1 opacity-70">{cycle.index}</td>
+                          <td className="py-1 opacity-70">{cycle.traceStep ?? '-'}</td>
+                          <td className="py-1 text-emerald-400">{cycle.decisionMaskBinary}</td>
+                          <td className="py-1 text-right">{cycle.averageResonance.toFixed(4)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {result.cycles.length === 0 && <div className="p-2 text-muted-foreground italic">No cycles recorded</div>}
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <div className="text-xs text-muted-foreground uppercase tracking-widest border-b border-border/50 pb-1">
+                  Pseudocode
+                </div>
+                <div className="bg-black/50 border border-border/50 p-3 font-mono text-[10px] text-emerald-400/70 overflow-x-auto whitespace-pre" data-testid="lattice-pseudocode">
+                  <div className="text-emerald-500 font-bold mb-2 pb-2 border-b border-emerald-900/30">
+                    STATUS: {result.renderedAvx512Pseudocode.status}
+                  </div>
+                  {result.renderedAvx512Pseudocode.code}
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function LegendSection() {
   const legends = [
     {
@@ -554,8 +760,39 @@ function LegendSection() {
       name: "performance.now timing",
       kind: "Measured telemetry",
       desc: "High-resolution millisecond clocks captured per-action in the browser."
+    },
+    {
+      name: "phi lattice-distance transform",
+      kind: "Deterministic heuristic",
+      desc: "Mathematical multiplication by 1.618... mapped to nearest integer boundaries, not a physical wave."
+    },
+    {
+      name: "eight-bit decision mask",
+      kind: "Implemented computation",
+      desc: "Deterministic bitwise OR operation aggregating eight independent threshold checks."
+    },
+    {
+      name: "dimensionless conductance equation",
+      kind: "Deterministic heuristic",
+      desc: "Arbitrary ratio bounding margin-above-threshold to [0, 1]. No electrical properties."
+    },
+    {
+      name: "semantic receipt hashing",
+      kind: "Implemented computation",
+      desc: "FNV-1a checksum of the explicit JSON object state without mutable time or identity."
+    },
+    {
+      name: "contradiction invariants",
+      kind: "Implemented computation",
+      desc: "Strict boolean checks verifying that derived metrics match across dependent properties."
+    },
+    {
+      name: "rendered AVX-512 pseudocode",
+      kind: "Metaphor-only",
+      desc: "Static string literal template. Not compiled, not executed, and asserts no functional equivalence."
     }
   ];
+
 
   return (
     <div className="border border-border bg-card flex flex-col" data-testid="mechanism-legend">
@@ -579,6 +816,8 @@ function LegendSection() {
 }
 
 export default function MatterLab() {
+  const [latestIntegrityTrial, setLatestIntegrityTrial] = useState<IntegrityTrial | null>(null);
+
   return (
     <div className="flex flex-col gap-6 h-full overflow-y-auto pb-10" data-testid="matter-lab">
       <div className="flex-none flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-border pb-4 gap-2">
@@ -597,7 +836,7 @@ export default function MatterLab() {
             <Binary className="w-5 h-5 text-secondary" />
             <h3 className="text-lg font-bold uppercase tracking-wider text-secondary">FRAY Binary Integrity</h3>
           </div>
-          <IntegritySection />
+          <IntegritySection onTrialChange={setLatestIntegrityTrial} />
         </section>
 
         <section className="flex flex-col gap-4">
@@ -614,6 +853,14 @@ export default function MatterLab() {
             <h3 className="text-lg font-bold uppercase tracking-wider text-violet-400">Deterministic Bicameral Monitoring</h3>
           </div>
           <BicameralSection />
+        </section>
+
+        <section className="flex flex-col gap-4">
+          <div className="flex items-center gap-2 border-b border-border/50 pb-2">
+            <Binary className="w-5 h-5 text-emerald-400" />
+            <h3 className="text-lg font-bold uppercase tracking-wider text-emerald-400">Deterministic Lattice Gate</h3>
+          </div>
+          <LatticeGateSection integrityTrial={latestIntegrityTrial} />
         </section>
 
         <section className="flex flex-col gap-4">
