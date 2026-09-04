@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { Link, useLocation } from 'wouter';
-import { ShieldAlert, Zap, BookOpen, Clock, Activity, Code2, Play, Microscope } from 'lucide-react';
+import { ShieldAlert, Zap, Clock, Activity, Code2, Layers, FlaskConical, Swords, Cpu, Waves, Braces, Microscope } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useKernelStore } from '@/hooks/use-kernel';
 
@@ -12,8 +12,15 @@ export function Layout({ children }: { children: ReactNode }) {
     { href: '/', label: 'Workbench', icon: Zap },
     { href: '/matter-lab', label: 'Matter Lab', icon: Microscope },
     { href: '/transmuter', label: 'Transmuter', icon: Code2 },
+    { href: '/fighter-cards', label: 'Fighters', icon: Swords },
+    { href: '/periodic-table', label: 'Atoms', icon: Layers },
+    { href: '/fusion-lab', label: 'Fusion', icon: FlaskConical },
+    { href: '/cve-feed', label: 'CVE Feed', icon: Waves },
+    { href: '/x86-map', label: 'x86', icon: Cpu },
+    { href: '/kinematics', label: 'Kinetics', icon: Activity },
+    { href: '/hdc', label: 'HDC', icon: Braces },
     { href: '/receipts', label: 'Ledger', icon: Clock },
-    { href: '/about', label: 'Boundaries', icon: ShieldAlert },
+    { href: '/about', label: 'Bounds', icon: ShieldAlert },
   ];
 
   return (

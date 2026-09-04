@@ -12,6 +12,13 @@ import Transmuter from '@/pages/transmuter';
 import Ledger from '@/pages/ledger';
 import About from '@/pages/about';
 import MatterLab from '@/pages/matter-lab';
+import FighterCards from '@/pages/fighter-cards';
+import PeriodicTable from '@/pages/periodic-table';
+import FusionLab from '@/pages/fusion-lab';
+import CveFeed from '@/pages/cve-feed';
+import X86Map from '@/pages/x86-map';
+import ExecutionKinematics from '@/pages/execution-kinematics';
+import HdcTransmutation from '@/pages/hdc-transmutation';
 
 const queryClient = new QueryClient();
 
@@ -25,6 +32,13 @@ function Router() {
           <Route path="/receipts" component={Ledger} />
           <Route path="/about" component={About} />
           <Route path="/matter-lab" component={MatterLab} />
+          <Route path="/fighter-cards" component={FighterCards} />
+          <Route path="/periodic-table" component={PeriodicTable} />
+          <Route path="/fusion-lab" component={FusionLab} />
+          <Route path="/cve-feed" component={CveFeed} />
+          <Route path="/x86-map" component={X86Map} />
+          <Route path="/kinematics" component={ExecutionKinematics} />
+          <Route path="/hdc" component={HdcTransmutation} />
           <Route component={NotFound} />
         </Switch>
       </RoutedErrorBoundary>
