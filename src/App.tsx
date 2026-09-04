@@ -11,6 +11,7 @@ import Workbench from '@/pages/workbench';
 import Transmuter from '@/pages/transmuter';
 import Ledger from '@/pages/ledger';
 import About from '@/pages/about';
+import MatterLab from '@/pages/matter-lab';
 
 const queryClient = new QueryClient();
 
@@ -23,6 +24,7 @@ function Router() {
           <Route path="/transmuter" component={Transmuter} />
           <Route path="/receipts" component={Ledger} />
           <Route path="/about" component={About} />
+          <Route path="/matter-lab" component={MatterLab} />
           <Route component={NotFound} />
         </Switch>
       </RoutedErrorBoundary>
