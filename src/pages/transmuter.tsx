@@ -1,5 +1,5 @@
 import { useKernelStore } from '@/hooks/use-kernel';
-import { Copy, CheckCheck, Binary, Terminal } from 'lucide-react';
+import { Copy, CheckCheck, Binary, Terminal, AlertCircle } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 
@@ -15,17 +15,25 @@ export default function Transmuter() {
 
   return (
     <div className="flex flex-col gap-4 h-full">
-      <div className="flex-none flex items-center justify-between">
-        <h2 className="text-xl font-bold tracking-tight uppercase flex items-center gap-2">
-          <Binary className="w-5 h-5 text-secondary" />
-          Transmuter (Multi-Target Output)
-        </h2>
+      <div className="flex-none flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-bold tracking-tight uppercase flex items-center gap-2">
+            <Binary className="w-5 h-5 text-secondary" />
+            Transmuter (Multi-Target Output)
+          </h2>
+        </div>
+        <div className="bg-destructive/10 border border-destructive/20 text-destructive text-xs p-3 flex items-start gap-2">
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+          <p>
+            <strong>NOTICE:</strong> Every target displayed here is source-derived and <em>rendered only</em>. These representations are NOT compiled or executed by this system, and absolutely <strong>no semantic equivalence</strong> is claimed between the bounded VM bytecode and these structural approximations.
+          </p>
+        </div>
       </div>
 
-      <div className="flex-1 border border-border bg-card flex flex-col min-h-0">
+      <div className="flex-1 border border-border bg-card flex flex-col min-h-0" data-testid="outputs">
         <div className="bg-muted px-4 py-3 border-b border-border flex justify-between items-center">
           <div className="text-xs font-bold uppercase tracking-wider flex items-center gap-2">
-            Target Languages (6)
+            Source-Derived Render Views ({activeRun?.outputs.length ?? 0})
           </div>
           {activeRun && (
             <div className="text-xs font-mono text-muted-foreground">
@@ -41,11 +49,11 @@ export default function Transmuter() {
               <p>No active trial to transmute.</p>
               <p className="text-xs mt-2">Return to the Workbench and ingest a concept.</p>
             </div>
-          ) : activeRun.status === 'blocked' ? (
+          ) : activeRun.outputs.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-destructive">
               <div className="border border-destructive bg-destructive/10 p-6 max-w-lg text-center shadow-[0_0_20px_rgba(255,0,0,0.2)]">
-                <p className="font-bold text-lg mb-2 uppercase tracking-widest">Transmutation Aborted</p>
-                <p className="text-sm">The concept failed an L0 safety invariant, so target renderers were not invoked.</p>
+                <p className="font-bold text-lg mb-2 uppercase tracking-widest">No Renderings Produced</p>
+                <p className="text-sm">The source was blocked or unsupported before the target renderers could run.</p>
                 <div className="mt-4 font-mono text-xs bg-black p-2 text-left text-destructive/80">
                   {activeRun.promotionReason}
                 </div>
@@ -81,7 +89,7 @@ export default function Transmuter() {
       
       {/* Bytecode visualizer at bottom */}
       {activeRun && activeRun.status !== 'blocked' && (
-        <div className="flex-none border border-border bg-card p-4 mt-4">
+        <div className="flex-none border border-border bg-card p-4 mt-4" data-testid="bytecode">
           <div className="text-xs text-muted-foreground uppercase tracking-widest mb-2">Raw Bytecode Stream</div>
           <div className="flex flex-wrap gap-2">
             {activeRun.bytecode.map((b, i) => (
